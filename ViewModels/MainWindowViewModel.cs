@@ -7,13 +7,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sber2Excel.Models;
 using Sber2Excel.Services;
+using Sber2Excel.Services.Parsing;
 
 namespace Sber2Excel.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly TopLevel _topLevel;
-    private readonly PdfParserService _parser = new();
     private readonly ExportService _exporter = new();
 
     [ObservableProperty]
@@ -21,7 +21,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private StatementInfo? _statement;
 
     [ObservableProperty]
-    private string _statusMessage = "Откройте PDF-файл выписки Сбербанка";
+    private string _statusMessage = "Откройте PDF-файл выписки";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
@@ -42,7 +42,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var files = await _topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Открыть выписку Сбербанка",
+            Title = "Открыть банковскую выписку",
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
@@ -57,20 +57,25 @@ public partial class MainWindowViewModel : ViewModelBase
         if (path is null) return;
 
         IsBusy = true;
-        StatusMessage = "Разбор выписки…";
+        StatusMessage = "Определение формата…";
 
         try
         {
-            var info = await Task.Run(() => _parser.ParseStatement(path));
+            var info = await Task.Run(() =>
+            {
+                var parser = PdfParserFactory.Detect(path)
+                    ?? throw new NotSupportedException("Формат PDF не поддерживается. Убедитесь, что это выписка одного из поддерживаемых банков.");
+                return parser.Parse(path);
+            });
 
             Statement = info;
             Transactions.Clear();
             foreach (var tx in info.Transactions)
                 Transactions.Add(tx);
 
-            StatusMessage = $"Загружено {info.Transactions.Count} операций  |  " +
+            StatusMessage = $"{info.BankName}  |  {info.Transactions.Count} операций  |  " +
                             $"{info.PeriodFrom:dd.MM.yyyy} – {info.PeriodTo:dd.MM.yyyy}  |  " +
-                            $"Владелец: {info.AccountHolder}";
+                            $"{info.AccountHolder}";
         }
         catch (Exception ex)
         {

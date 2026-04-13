@@ -5,6 +5,7 @@ namespace Sber2Excel.Models;
 
 public class StatementInfo
 {
+    public string BankName { get; set; } = "";
     public string AccountHolder { get; set; } = "";
     public string AccountNumber { get; set; } = "";
     public string CardNumber { get; set; } = "";
