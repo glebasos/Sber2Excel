@@ -5,12 +5,27 @@
         <Nullable>enable</Nullable>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+        <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
     </PropertyGroup>
 
     <ItemGroup>
         <Folder Include="Models\"/>
         <AvaloniaResource Include="Assets\**"/>
     </ItemGroup>
+
+    <Target Name="RemoveNativePdbs" AfterTargets="Publish"
+            Condition="'$(Configuration)' == 'Release'">
+        <ItemGroup>
+            <_NativePdbs Include="$(PublishDir)**\*.pdb"/>
+        </ItemGroup>
+        <Delete Files="@(_NativePdbs)"/>
+    </Target>
 
     <ItemGroup>
         <PackageReference Include="Avalonia" Version="12.0.0"/>
