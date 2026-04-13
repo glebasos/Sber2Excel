@@ -146,11 +146,11 @@
 
                 <DataGridTextColumn Header="Дата операции"
                                     Width="145"
-                                    Binding="{Binding OperationDate, StringFormat=\{0:dd.MM.yyyy HH:mm\}}"/>
+                                    Binding="{Binding OperationDateStr}"/>
 
                 <DataGridTextColumn Header="Дата обработки"
                                     Width="120"
-                                    Binding="{Binding ProcessingDate, StringFormat=\{0:dd.MM.yyyy\}}"/>
+                                    Binding="{Binding ProcessingDateStr}"/>
 
                 <DataGridTextColumn Header="Код авт."
                                     Width="75"
@@ -170,7 +170,7 @@
                             <TextBlock HorizontalAlignment="Right"
                                        VerticalAlignment="Center"
                                        Margin="8,0"
-                                       Text="{Binding Amount, StringFormat=\{0:N2\}}"
+                                       Text="{Binding AmountStr}"
                                        Foreground="{Binding IsCredit, Converter={StaticResource BoolToColorConverter}}"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -182,7 +182,7 @@
                             <TextBlock HorizontalAlignment="Right"
                                        VerticalAlignment="Center"
                                        Margin="8,0"
-                                       Text="{Binding Balance, StringFormat=\{0:N2\}}"/>
+                                       Text="{Binding BalanceStr}"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
