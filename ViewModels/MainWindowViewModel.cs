@@ -1,10 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Models.TreeDataGrid;
+using Avalonia.Controls.Templates;
+using Avalonia.Data;
+using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sber2Excel.Converters;
 using Sber2Excel.Models;
 using Sber2Excel.Services;
 using Sber2Excel.Services.Parsing;
@@ -30,11 +39,130 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool HasData => Statement != null;
     public bool IsNotBusy => !IsBusy;
 
+    private readonly List<Transaction> _allTransactions = new();
+
     public ObservableCollection<Transaction> Transactions { get; } = new();
+
+    public ObservableCollection<string> Categories { get; } = new();
+
+    [ObservableProperty]
+    private FlatTreeDataGridSource<Transaction> _transactionsSource = null!;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilter))]
+    private string? _categoryFilter;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilter))]
+    private string _descriptionFilter = "";
+
+    public bool HasActiveFilter =>
+        !string.IsNullOrEmpty(CategoryFilter) || !string.IsNullOrWhiteSpace(DescriptionFilter);
+
+    partial void OnCategoryFilterChanged(string? value) => ApplyFilter();
+    partial void OnDescriptionFilterChanged(string value) => ApplyFilter();
 
     public MainWindowViewModel(TopLevel topLevel)
     {
         _topLevel = topLevel;
+        TransactionsSource = BuildTransactionsSource(Transactions);
+    }
+
+    [RelayCommand]
+    private void ClearSort()
+    {
+        TransactionsSource = BuildTransactionsSource(Transactions);
+    }
+
+    private void ApplyFilter()
+    {
+        IEnumerable<Transaction> q = _allTransactions;
+
+        if (!string.IsNullOrEmpty(CategoryFilter))
+            q = q.Where(t => t.Category == CategoryFilter);
+
+        if (!string.IsNullOrWhiteSpace(DescriptionFilter))
+        {
+            var needle = DescriptionFilter.Trim();
+            q = q.Where(t => t.Description.Contains(needle, StringComparison.OrdinalIgnoreCase));
+        }
+
+        Transactions.Clear();
+        foreach (var t in q) Transactions.Add(t);
+    }
+
+    [RelayCommand]
+    private void ClearFilter()
+    {
+        CategoryFilter = null;
+        DescriptionFilter = "";
+    }
+
+    private static FlatTreeDataGridSource<Transaction> BuildTransactionsSource(
+        ObservableCollection<Transaction> rows)
+    {
+        var converter = new BoolToColorConverter();
+
+        var amountTemplate = new FuncDataTemplate<Transaction>((_, _) =>
+        {
+            var tb = new TextBlock
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0),
+            };
+            tb.Bind(TextBlock.TextProperty, new Binding(nameof(Transaction.AmountStr)));
+            tb.Bind(TextBlock.ForegroundProperty,
+                new Binding(nameof(Transaction.IsCredit)) { Converter = converter });
+            return tb;
+        });
+
+        var balanceTemplate = new FuncDataTemplate<Transaction>((_, _) =>
+        {
+            var tb = new TextBlock
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0),
+            };
+            tb.Bind(TextBlock.TextProperty, new Binding(nameof(Transaction.BalanceStr)));
+            return tb;
+        });
+
+        return new FlatTreeDataGridSource<Transaction>(rows)
+        {
+            Columns =
+            {
+                new TextColumn<Transaction, string>(
+                    "Дата операции", x => x.OperationDateStr, new GridLength(145)),
+                new TextColumn<Transaction, string>(
+                    "Дата обработки", x => x.ProcessingDateStr, new GridLength(120)),
+                new TextColumn<Transaction, string>(
+                    "Код авт.", x => x.AuthCode, new GridLength(75)),
+                new TextColumn<Transaction, string>(
+                    "Категория", x => x.Category, new GridLength(160)),
+                new TextColumn<Transaction, string>(
+                    "Описание", x => x.Description, new GridLength(1, GridUnitType.Star)),
+                new TemplateColumn<Transaction>(
+                    "Сумма",
+                    amountTemplate,
+                    width: new GridLength(115),
+                    options: new TemplateColumnOptions<Transaction>
+                    {
+                        CompareAscending = (a, b) => a!.Amount.CompareTo(b!.Amount),
+                        CompareDescending = (a, b) => b!.Amount.CompareTo(a!.Amount),
+                    }),
+                new TemplateColumn<Transaction>(
+                    "Остаток",
+                    balanceTemplate,
+                    width: new GridLength(115),
+                    options: new TemplateColumnOptions<Transaction>
+                    {
+                        CompareAscending = (a, b) => a!.Balance.CompareTo(b!.Balance),
+                        CompareDescending = (a, b) => b!.Balance.CompareTo(a!.Balance),
+                    }),
+            },
+        };
     }
 
     [RelayCommand]
@@ -69,9 +197,21 @@ public partial class MainWindowViewModel : ViewModelBase
             });
 
             Statement = info;
-            Transactions.Clear();
-            foreach (var tx in info.Transactions)
-                Transactions.Add(tx);
+
+            _allTransactions.Clear();
+            _allTransactions.AddRange(info.Transactions);
+
+            Categories.Clear();
+            foreach (var c in info.Transactions
+                         .Select(t => t.Category)
+                         .Where(c => !string.IsNullOrWhiteSpace(c))
+                         .Distinct()
+                         .OrderBy(c => c))
+                Categories.Add(c);
+
+            CategoryFilter = null;
+            DescriptionFilter = "";
+            ApplyFilter();
 
             StatusMessage = $"{info.BankName}  |  {info.Transactions.Count} операций  |  " +
                             $"{info.PeriodFrom:dd.MM.yyyy} – {info.PeriodTo:dd.MM.yyyy}  |  " +

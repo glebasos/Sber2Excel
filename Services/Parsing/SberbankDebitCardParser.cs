@@ -38,6 +38,9 @@ public partial class SberbankDebitCardParser : PdfParserBase
     [GeneratedRegex(@"Списание\s+([\d\s\u00A0]+,\d{2})")]
     private static partial Regex WithdrawalsRegex();
 
+    [GeneratedRegex(@"^.*?[•*\.]{2,}\s*\d{4}")]
+    private static partial Regex CardNumberRegex();
+
     private static readonly string[] SkipKeywords =
     [
         "Выписка по счёту", "ДАТА ОПЕРАЦИИ", "КАТЕГОРИЯ",
@@ -150,7 +153,13 @@ public partial class SberbankDebitCardParser : PdfParserBase
             if (full.Contains("Владелец счёта"))        { nextIsHolder = true; continue; }
             if (nextIsHolder)                            { info.AccountHolder = full; nextIsHolder = false; continue; }
             if (full.StartsWith("Номер счёта"))          { info.AccountNumber = full["Номер счёта".Length..].Trim(); continue; }
-            if (full.StartsWith("Карта") && !full.Contains("Дата")) { info.CardNumber = full["Карта".Length..].Trim(); continue; }
+            if (full.StartsWith("Карта") && !full.Contains("Дата"))
+            {
+                var rest = full["Карта".Length..].Trim();
+                var cardMatch = CardNumberRegex().Match(rest);
+                info.CardNumber = cardMatch.Success ? cardMatch.Value.Trim() : rest;
+                continue;
+            }
             if (full.StartsWith("Валюта"))               { info.Currency = full["Валюта".Length..].Trim(); }
         }
     }

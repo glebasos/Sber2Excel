@@ -1,7 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Sber2Excel.ViewModels"
-        xmlns:conv="using:Sber2Excel.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
@@ -12,10 +11,6 @@
         Title="Sber2Excel — Конвертер выписки Сбербанка"
         MinWidth="800" MinHeight="500"
         Width="1100" Height="700">
-
-    <Window.Resources>
-        <conv:BoolToColorConverter x:Key="BoolToColorConverter"/>
-    </Window.Resources>
 
     <DockPanel>
 
@@ -124,6 +119,50 @@
             </Grid>
         </Border>
 
+        <!-- Filter bar -->
+        <Border DockPanel.Dock="Top"
+                IsVisible="{Binding HasData}"
+                Background="{DynamicResource SystemControlBackgroundChromeLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,6">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+
+                <TextBlock Text="Категория:" VerticalAlignment="Center" Opacity="0.7"/>
+                <ComboBox ItemsSource="{Binding Categories}"
+                          SelectedItem="{Binding CategoryFilter, Mode=TwoWay}"
+                          PlaceholderText="(все)"
+                          MinWidth="180"/>
+
+                <TextBlock Text="Описание:" VerticalAlignment="Center" Opacity="0.7" Margin="8,0,0,0"/>
+                <TextBox Text="{Binding DescriptionFilter, Mode=TwoWay}"
+                         Watermark="поиск…"
+                         MinWidth="220"/>
+
+                <Button Command="{Binding ClearFilterCommand}"
+                        IsEnabled="{Binding HasActiveFilter}"
+                        Padding="10,4"
+                        ToolTip.Tip="Сбросить фильтры">
+                    <TextBlock Text="✕ Фильтр"/>
+                </Button>
+
+                <Separator Width="1"
+                           Background="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Margin="4,2"/>
+
+                <Button Command="{Binding ClearSortCommand}"
+                        Padding="10,4"
+                        ToolTip.Tip="Сбросить сортировку">
+                    <TextBlock Text="↕ Сортировка"/>
+                </Button>
+
+                <TextBlock VerticalAlignment="Center" Opacity="0.6" Margin="12,0,0,0">
+                    <Run Text="Показано:"/>
+                    <Run Text="{Binding Transactions.Count}"/>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
         <!-- Status bar -->
         <Border DockPanel.Dock="Bottom"
                 Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
@@ -133,62 +172,11 @@
                        TextTrimming="CharacterEllipsis"/>
         </Border>
 
-        <!-- Transactions DataGrid -->
-        <DataGrid ItemsSource="{Binding Transactions}"
-                  IsReadOnly="True"
-                  GridLinesVisibility="Horizontal"
-                  CanUserSortColumns="True"
-                  CanUserResizeColumns="True"
-                  RowHeight="32"
-                  FontSize="13">
-
-            <DataGrid.Columns>
-
-                <DataGridTextColumn Header="Дата операции"
-                                    Width="145"
-                                    Binding="{Binding OperationDateStr}"/>
-
-                <DataGridTextColumn Header="Дата обработки"
-                                    Width="120"
-                                    Binding="{Binding ProcessingDateStr}"/>
-
-                <DataGridTextColumn Header="Код авт."
-                                    Width="75"
-                                    Binding="{Binding AuthCode}"/>
-
-                <DataGridTextColumn Header="Категория"
-                                    Width="160"
-                                    Binding="{Binding Category}"/>
-
-                <DataGridTextColumn Header="Описание"
-                                    Width="*"
-                                    Binding="{Binding Description}"/>
-
-                <DataGridTemplateColumn Header="Сумма" Width="115" SortMemberPath="Amount">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock HorizontalAlignment="Right"
-                                       VerticalAlignment="Center"
-                                       Margin="8,0"
-                                       Text="{Binding AmountStr}"
-                                       Foreground="{Binding IsCredit, Converter={StaticResource BoolToColorConverter}}"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-                <DataGridTemplateColumn Header="Остаток" Width="115" SortMemberPath="Balance">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock HorizontalAlignment="Right"
-                                       VerticalAlignment="Center"
-                                       Margin="8,0"
-                                       Text="{Binding BalanceStr}"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-            </DataGrid.Columns>
-        </DataGrid>
+        <!-- Transactions TreeDataGrid -->
+        <TreeDataGrid Source="{Binding TransactionsSource}"
+                      CanUserResizeColumns="True"
+                      ShowColumnHeaders="True"
+                      FontSize="13"/>
 
     </DockPanel>
 </Window>
