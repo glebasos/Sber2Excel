@@ -4,8 +4,8 @@
 
 Это **ядро** приложения — библиотека на Avalonia без точки входа. Содержит парсеры PDF, view-модели, представления (`MainView`, `MainWindow`) и сервисы экспорта. Запускается через одну из «голов»:
 
-- [`Sber2Excel.Desktop`](../Sber2Excel.Desktop) — десктопное приложение (Windows / Linux / macOS).
-- [`Sber2Excel.Browser`](../Sber2Excel.Browser) — WebAssembly, работает прямо в браузере.
+- [`Sber2Excel.Desktop`](https://github.com/glebasos/Sber2Excel.Desktop) — десктопное приложение (Windows / Linux / macOS).
+- [`Sber2Excel.Browser`](https://github.com/glebasos/Sber2Excel.Browser) — WebAssembly, работает прямо в браузере.
 
 ## Что делает
 
