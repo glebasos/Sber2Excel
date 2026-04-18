@@ -49,7 +49,7 @@ public partial class SberbankDebitCardParser : PdfParserBase
         "Дата обработки", "и код авторизации", "Описание операции",
         "Действителен", "www.sberbank", "Вавилова", "Заказано",
         "Для проверки", "Зайдите", "Нажмите", "Получите", "Предоставляя",
-        "Страница"
+        "Страница", "Дата формирования", "Реквизиты для"
     ];
 
     // ── Main parse ────────────────────────────────────────────────────────────
@@ -82,6 +82,14 @@ public partial class SberbankDebitCardParser : PdfParserBase
             {
                 var full = line.FullText.Trim();
                 if (string.IsNullOrWhiteSpace(full)) continue;
+
+                // Footer marker — finalize the last transaction and stop reading.
+                if (full.Contains("Дата формирования", StringComparison.Ordinal))
+                {
+                    if (currentTx != null) { info.Transactions.Add(currentTx); currentTx = null; }
+                    return info;
+                }
+
                 if (SkipKeywords.Any(k => full.Contains(k, StringComparison.Ordinal))) continue;
 
                 // Transaction header: DD.MM.YYYY HH:MM  category  amount  balance

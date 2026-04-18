@@ -73,7 +73,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ClearSort()
     {
-        TransactionsSource = BuildTransactionsSource(Transactions);
+        foreach (var col in TransactionsSource.Columns)
+            TransactionsSource.ClearSort(col);
     }
 
     private void ApplyFilter()
