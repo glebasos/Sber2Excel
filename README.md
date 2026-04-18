@@ -1,6 +1,6 @@
 # Sber2Excel
 
-Конвертер PDF-выписок дебетовых карт Сбербанка в CSV и Excel.
+Конвертер PDF-выписок дебетовых карт Сбербанка в CSV и Excel. Онлайн версия тут => [ONLINE](https://glebasos.github.io/Sber2Excel_Wasm_Deploy/)
 
 **Для всех остальных выписок используйте приложение от Ev2geny** [`Sberbank2Excel`](https://github.com/Ev2geny/Sberbank2Excel/)
 
