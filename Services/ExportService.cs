@@ -17,8 +17,15 @@ public class ExportService
 
     public void ExportCsv(string filePath, StatementInfo info)
     {
-        using var writer = new StreamWriter(filePath, append: false,
-            encoding: new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        using var stream = File.Create(filePath);
+        ExportCsv(stream, info);
+    }
+
+    public void ExportCsv(Stream stream, StatementInfo info)
+    {
+        using var writer = new StreamWriter(stream,
+            encoding: new UTF8Encoding(encoderShouldEmitUTF8Identifier: true),
+            leaveOpen: true);
 
         writer.WriteLine(string.Join(";", CsvHeaders));
 
@@ -40,10 +47,16 @@ public class ExportService
 
     public void ExportXlsx(string filePath, StatementInfo info)
     {
+        using var stream = File.Create(filePath);
+        ExportXlsx(stream, info);
+    }
+
+    public void ExportXlsx(Stream stream, StatementInfo info)
+    {
         using var workbook = new XLWorkbook();
         AddInfoSheet(workbook, info);
         AddTransactionsSheet(workbook, info);
-        workbook.SaveAs(filePath);
+        workbook.SaveAs(stream);
     }
 
     private static string Escape(string value)

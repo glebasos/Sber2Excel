@@ -31,13 +31,20 @@ public static class PdfParserFactory
     /// </summary>
     public static IPdfStatementParser? Detect(string filePath)
     {
-        string firstPageText;
-        using (var doc = PdfDocument.Open(filePath))
-        {
-            var words = doc.GetPage(1).GetWords();
-            firstPageText = string.Join(" ", words.Select(w => w.Text));
-        }
+        using var doc = PdfDocument.Open(filePath);
+        return DetectCore(doc);
+    }
 
+    public static IPdfStatementParser? Detect(byte[] pdfBytes)
+    {
+        using var doc = PdfDocument.Open(pdfBytes);
+        return DetectCore(doc);
+    }
+
+    private static IPdfStatementParser? DetectCore(PdfDocument doc)
+    {
+        var words = doc.GetPage(1).GetWords();
+        var firstPageText = string.Join(" ", words.Select(w => w.Text));
         return Parsers.FirstOrDefault(p => p.CanParse(firstPageText));
     }
 }

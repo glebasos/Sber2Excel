@@ -54,11 +54,15 @@ public partial class SberbankDebitCardParser : PdfParserBase
 
     // ── Main parse ────────────────────────────────────────────────────────────
 
-    public override StatementInfo Parse(string filePath)
+    public override StatementInfo Parse(string filePath) => ParseDocument(PdfDocument.Open(filePath));
+
+    public override StatementInfo Parse(byte[] pdfBytes) => ParseDocument(PdfDocument.Open(pdfBytes));
+
+    private StatementInfo ParseDocument(PdfDocument document)
     {
         var info = new StatementInfo { BankName = DisplayName };
 
-        using var document = PdfDocument.Open(filePath);
+        using var _ = document;
 
         Transaction? currentTx = null;
         bool awaitingProcessingLine = false;

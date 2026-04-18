@@ -10,6 +10,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,8 +23,10 @@ namespace Sber2Excel.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    private readonly TopLevel _topLevel;
+    private TopLevel? _topLevel;
     private readonly ExportService _exporter = new();
+
+    public void AttachTopLevel(TopLevel topLevel) => _topLevel = topLevel;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasData))]
@@ -62,9 +65,8 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnCategoryFilterChanged(string? value) => ApplyFilter();
     partial void OnDescriptionFilterChanged(string value) => ApplyFilter();
 
-    public MainWindowViewModel(TopLevel topLevel)
+    public MainWindowViewModel()
     {
-        _topLevel = topLevel;
         TransactionsSource = BuildTransactionsSource(Transactions);
     }
 
@@ -101,7 +103,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private static FlatTreeDataGridSource<Transaction> BuildTransactionsSource(
         ObservableCollection<Transaction> rows)
     {
-        var converter = new BoolToColorConverter();
+        var greenBrush = new SolidColorBrush(Color.Parse("#1A7F37"));
+        var redBrush = new SolidColorBrush(Color.Parse("#CF1322"));
 
         var amountTemplate = new FuncDataTemplate<Transaction>((_, _) =>
         {
@@ -111,9 +114,21 @@ public partial class MainWindowViewModel : ViewModelBase
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0),
             };
-            tb.Bind(TextBlock.TextProperty, new Binding(nameof(Transaction.AmountStr)));
-            tb.Bind(TextBlock.ForegroundProperty,
-                new Binding(nameof(Transaction.IsCredit)) { Converter = converter });
+            void Apply()
+            {
+                if (tb.DataContext is Transaction tx)
+                {
+                    tb.Text = tx.AmountStr;
+                    tb.Foreground = tx.IsCredit ? greenBrush : redBrush;
+                }
+                else
+                {
+                    tb.Text = "";
+                    tb.ClearValue(TextBlock.ForegroundProperty);
+                }
+            }
+            tb.DataContextChanged += (_, _) => Apply();
+            Apply();
             return tb;
         });
 
@@ -125,7 +140,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0),
             };
-            tb.Bind(TextBlock.TextProperty, new Binding(nameof(Transaction.BalanceStr)));
+            void Apply()
+            {
+                tb.Text = tb.DataContext is Transaction tx ? tx.BalanceStr : "";
+            }
+            tb.DataContextChanged += (_, _) => Apply();
+            Apply();
             return tb;
         });
 
@@ -168,7 +188,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenPdf()
     {
-        var files = await _topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var files = await _topLevel!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Открыть банковскую выписку",
             AllowMultiple = false,
@@ -180,20 +200,26 @@ public partial class MainWindowViewModel : ViewModelBase
         });
 
         if (files.Count == 0) return;
-
-        var path = files[0].TryGetLocalPath();
-        if (path is null) return;
+        var file = files[0];
 
         IsBusy = true;
         StatusMessage = "Определение формата…";
 
         try
         {
+            byte[] bytes;
+            await using (var s = await file.OpenReadAsync())
+            {
+                using var ms = new System.IO.MemoryStream();
+                await s.CopyToAsync(ms);
+                bytes = ms.ToArray();
+            }
+
             var info = await Task.Run(() =>
             {
-                var parser = PdfParserFactory.Detect(path)
+                var parser = PdfParserFactory.Detect(bytes)
                     ?? throw new NotSupportedException("Формат PDF не поддерживается. Убедитесь, что это выписка одного из поддерживаемых банков.");
-                return parser.Parse(path);
+                return parser.Parse(bytes);
             });
 
             Statement = info;
@@ -230,7 +256,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(HasData))]
     private async Task ExportCsv()
     {
-        var file = await _topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        var file = await _topLevel!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Сохранить как CSV",
             SuggestedFileName = BuildFileName("csv"),
@@ -241,15 +267,18 @@ public partial class MainWindowViewModel : ViewModelBase
         });
 
         if (file is null) return;
-        var path = file.TryGetLocalPath();
-        if (path is null) return;
 
         IsBusy = true;
         StatusMessage = "Экспорт в CSV…";
         try
         {
-            await Task.Run(() => _exporter.ExportCsv(path, Statement!));
-            StatusMessage = $"CSV сохранён: {path}";
+            using var ms = new System.IO.MemoryStream();
+            _exporter.ExportCsv(ms, Statement!);
+            ms.Position = 0;
+            await using var stream = await file.OpenWriteAsync();
+            await ms.CopyToAsync(stream);
+            await stream.FlushAsync();
+            StatusMessage = $"CSV сохранён: {file.Name}";
         }
         catch (Exception ex)
         {
@@ -264,7 +293,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(HasData))]
     private async Task ExportXlsx()
     {
-        var file = await _topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        var file = await _topLevel!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Сохранить как Excel",
             SuggestedFileName = BuildFileName("xlsx"),
@@ -275,15 +304,18 @@ public partial class MainWindowViewModel : ViewModelBase
         });
 
         if (file is null) return;
-        var path = file.TryGetLocalPath();
-        if (path is null) return;
 
         IsBusy = true;
         StatusMessage = "Экспорт в Excel…";
         try
         {
-            await Task.Run(() => _exporter.ExportXlsx(path, Statement!));
-            StatusMessage = $"Excel сохранён: {path}";
+            using var ms = new System.IO.MemoryStream();
+            _exporter.ExportXlsx(ms, Statement!);
+            ms.Position = 0;
+            await using var stream = await file.OpenWriteAsync();
+            await ms.CopyToAsync(stream);
+            await stream.FlushAsync();
+            StatusMessage = $"Excel сохранён: {file.Name}";
         }
         catch (Exception ex)
         {

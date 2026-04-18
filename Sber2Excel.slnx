@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="Sber2Excel.csproj" />
+  <Project Path="../Sber2Excel.Desktop/Sber2Excel.Desktop.csproj" />
+  <Project Path="../Sber2Excel.Browser/Sber2Excel.Browser.csproj" />
 </Solution>

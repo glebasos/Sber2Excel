@@ -1,8 +1,5 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
-using Avalonia.Data.Core.Plugins;
-using System.Linq;
 using Avalonia.Markup.Xaml;
 using Sber2Excel.Views;
 
@@ -17,9 +14,14 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        switch (ApplicationLifetime)
         {
-            desktop.MainWindow = new MainWindow();
+            case IClassicDesktopStyleApplicationLifetime desktop:
+                desktop.MainWindow = new MainWindow();
+                break;
+            case ISingleViewApplicationLifetime singleView:
+                singleView.MainView = new MainView();
+                break;
         }
 
         base.OnFrameworkInitializationCompleted();

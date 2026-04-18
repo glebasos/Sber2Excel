@@ -21,4 +21,7 @@ public interface IPdfStatementParser
 
     /// <summary>Parses the entire file and returns a populated <see cref="StatementInfo"/>.</summary>
     StatementInfo Parse(string filePath);
+
+    /// <summary>Parses from in-memory bytes (used in browser where there is no file path).</summary>
+    StatementInfo Parse(byte[] pdfBytes);
 }

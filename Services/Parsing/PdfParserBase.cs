@@ -16,6 +16,7 @@ public abstract partial class PdfParserBase : IPdfStatementParser
     public abstract string DisplayName { get; }
     public abstract bool CanParse(string firstPageText);
     public abstract Sber2Excel.Models.StatementInfo Parse(string filePath);
+    public abstract Sber2Excel.Models.StatementInfo Parse(byte[] pdfBytes);
 
     // ── Shared regex ─────────────────────────────────────────────────────────
 
