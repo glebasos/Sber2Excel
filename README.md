@@ -2,6 +2,8 @@
 
 Конвертер PDF-выписок дебетовых карт Сбербанка в CSV и Excel.
 
+**Для всех остальных выписок используйте приложение от Ev2geny** [`Sber2bankExcel`](https://github.com/Ev2geny/Sberbank2Excel/)
+
 Это **ядро** приложения — библиотека на Avalonia без точки входа. Содержит парсеры PDF, view-модели, представления (`MainView`, `MainWindow`) и сервисы экспорта. Запускается через одну из «голов»:
 
 - [`Sber2Excel.Desktop`](https://github.com/glebasos/Sber2Excel.Desktop) — десктопное приложение (Windows / Linux / macOS).
