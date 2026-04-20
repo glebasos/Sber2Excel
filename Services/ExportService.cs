@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using ClosedXML.Excel;
 using Sber2Excel.Models;
@@ -9,12 +11,6 @@ namespace Sber2Excel.Services;
 
 public class ExportService
 {
-    private static readonly string[] CsvHeaders =
-    [
-        "Дата операции", "Дата обработки", "Код авторизации",
-        "Категория", "Описание", "Сумма", "Остаток"
-    ];
-
     public void ExportCsv(string filePath, StatementInfo info)
     {
         using var stream = File.Create(filePath);
@@ -27,12 +23,24 @@ public class ExportService
             encoding: new UTF8Encoding(encoderShouldEmitUTF8Identifier: true),
             leaveOpen: true);
 
-        writer.WriteLine(string.Join(";", CsvHeaders));
+        bool includeOperational = info.Transactions.Any(t => !string.IsNullOrEmpty(t.OperationalCurrency));
+        bool includeSavings = info.Transactions.Any(t =>
+            !string.IsNullOrEmpty(t.Code) || !string.IsNullOrEmpty(t.OffsettingAccount) || !string.IsNullOrEmpty(t.DocumentNumber));
+
+        var headers = new List<string>
+        {
+            "Дата операции", "Дата обработки", "Код авторизации",
+            "Категория", "Описание", "Сумма", "Остаток",
+        };
+        if (includeOperational) { headers.Add("Сумма в валюте операции"); headers.Add("Валюта операции"); }
+        if (includeSavings) { headers.Add("Шифр"); headers.Add("К/с"); headers.Add("№ документа"); }
+
+        writer.WriteLine(string.Join(";", headers));
 
         foreach (var tx in info.Transactions)
         {
-            string[] row =
-            [
+            var row = new List<string>
+            {
                 Escape(tx.OperationDate.ToString("dd.MM.yyyy HH:mm")),
                 Escape(tx.ProcessingDate?.ToString("dd.MM.yyyy") ?? ""),
                 Escape(tx.AuthCode),
@@ -40,7 +48,18 @@ public class ExportService
                 Escape(tx.Description),
                 tx.Amount.ToString("N2", CultureInfo.InvariantCulture),
                 tx.Balance.ToString("N2", CultureInfo.InvariantCulture),
-            ];
+            };
+            if (includeOperational)
+            {
+                row.Add(tx.OperationalAmount?.ToString("N2", CultureInfo.InvariantCulture) ?? "");
+                row.Add(Escape(tx.OperationalCurrency));
+            }
+            if (includeSavings)
+            {
+                row.Add(Escape(tx.Code));
+                row.Add(Escape(tx.OffsettingAccount));
+                row.Add(Escape(tx.DocumentNumber));
+            }
             writer.WriteLine(string.Join(";", row));
         }
     }
@@ -100,13 +119,19 @@ public class ExportService
     {
         var ws = wb.Worksheets.Add("Операции");
 
-        string[] headers =
-        [
-            "Дата операции", "Дата обработки", "Код авторизации",
-            "Категория", "Описание", "Сумма", "Остаток"
-        ];
+        bool includeOperational = info.Transactions.Any(t => !string.IsNullOrEmpty(t.OperationalCurrency));
+        bool includeSavings = info.Transactions.Any(t =>
+            !string.IsNullOrEmpty(t.Code) || !string.IsNullOrEmpty(t.OffsettingAccount) || !string.IsNullOrEmpty(t.DocumentNumber));
 
-        for (int c = 0; c < headers.Length; c++)
+        var headers = new List<string>
+        {
+            "Дата операции", "Дата обработки", "Код авторизации",
+            "Категория", "Описание", "Сумма", "Остаток",
+        };
+        if (includeOperational) { headers.Add("Сумма в валюте операции"); headers.Add("Валюта операции"); }
+        if (includeSavings) { headers.Add("Шифр"); headers.Add("К/с"); headers.Add("№ документа"); }
+
+        for (int c = 0; c < headers.Count; c++)
         {
             var cell = ws.Cell(1, c + 1);
             cell.Value = headers[c];
@@ -142,14 +167,28 @@ public class ExportService
 
             ws.Cell(row, 7).Value = tx.Balance;
             ws.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+
+            int col = 8;
+            if (includeOperational)
+            {
+                if (tx.OperationalAmount.HasValue)
+                {
+                    ws.Cell(row, col).Value = tx.OperationalAmount.Value;
+                    ws.Cell(row, col).Style.NumberFormat.Format = "#,##0.00";
+                }
+                col++;
+                ws.Cell(row, col++).Value = tx.OperationalCurrency;
+            }
+            if (includeSavings)
+            {
+                ws.Cell(row, col++).Value = tx.Code;
+                ws.Cell(row, col++).Value = tx.OffsettingAccount;
+                ws.Cell(row, col++).Value = tx.DocumentNumber;
+            }
         }
 
-        ws.Column(1).AdjustToContents();
-        ws.Column(2).AdjustToContents();
-        ws.Column(3).AdjustToContents();
-        ws.Column(4).AdjustToContents();
+        for (int c = 1; c <= headers.Count; c++)
+            ws.Column(c).AdjustToContents();
         ws.Column(5).Width = 50;
-        ws.Column(6).AdjustToContents();
-        ws.Column(7).AdjustToContents();
     }
 }

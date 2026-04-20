@@ -14,6 +14,15 @@ public class Transaction
     public decimal Amount { get; set; }
     public decimal Balance { get; set; }
 
+    // Optional — populated for foreign-currency operations.
+    public decimal? OperationalAmount { get; set; }
+    public string OperationalCurrency { get; set; } = "";
+
+    // Optional — populated by savings-account parsers.
+    public string Code { get; set; } = "";               // шифр
+    public string OffsettingAccount { get; set; } = ""; // № корреспондирующего счёта
+    public string DocumentNumber { get; set; } = "";    // № документа
+
     public bool IsCredit => Amount >= 0;
 
     // Pre-formatted strings used by the DataGrid — avoids StringFormat in XAML

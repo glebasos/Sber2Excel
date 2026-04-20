@@ -16,9 +16,8 @@ public static class PdfParserFactory
     // ── Register all known parsers here ───────────────────────────────────────
     private static readonly List<IPdfStatementParser> Parsers =
     [
-        new SberbankDebitCardParser(),
-        // new SberbankCreditCardParser(),
-        // new TinkoffDebitCardParser(),
+        new SberPaymentDebit2604b(),
+        new SberSaving2303(),
     ];
 
     /// <summary>All registered parsers (for display in UI if needed).</summary>

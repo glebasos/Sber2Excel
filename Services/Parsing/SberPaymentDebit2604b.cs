@@ -8,15 +8,32 @@ using UglyToad.PdfPig;
 namespace Sber2Excel.Services.Parsing;
 
 /// <summary>
-/// Parses Sberbank debit-card statements (PDF exported from СберБанк Онлайн).
-/// Fingerprint: "Выписка по счёту дебетовой карты" on page 1.
+/// Port of Python Sberbank2Excel extractor SBER_PAYMENT_DEBIT_2604b.
+/// Covers modern (2026-era) Sberbank PDF statements where the same template is used
+/// for debit cards and payment accounts.
+/// Fingerprint (all must be present): "Сбербанк", "Выписка по счёту дебетовой карты" OR
+/// "Выписка по платёжному счёту", "Дата формирования", "Для проверки подлинности документа".
+/// Anti-fingerprint (must NOT be present): "ОСТАТОК ПО СЧЁТУ", "Дергунова К. А."
 /// </summary>
-public partial class SberbankDebitCardParser : PdfParserBase
+public partial class SberPaymentDebit2604b : PdfParserBase
 {
-    public override string DisplayName => "Сбербанк — дебетовая карта";
+    public override string DisplayName => "Сбербанк — дебетовая карта / платёжный счёт (2604b)";
 
-    public override bool CanParse(string firstPageText) =>
-        firstPageText.Contains("Выписка по счёту дебетовой карты");
+    public override bool CanParse(string firstPageText)
+    {
+        // Same signature as Python SBER_PAYMENT_DEBIT_2604b.check_specific_signatures.
+        // Note: some markers (Дата формирования, Для проверки подлинности) live on the LAST page,
+        // not the first — but the first page is all we have at detection time. Consumer calls Parse()
+        // which may still accept documents that look close enough.
+        bool hasBank = Regex.IsMatch(firstPageText, "сбербанк", RegexOptions.IgnoreCase);
+        bool hasStatement =
+            firstPageText.Contains("Выписка по счёту дебетовой карты", StringComparison.Ordinal) ||
+            firstPageText.Contains("Выписка по платёжному счёту", StringComparison.Ordinal);
+        bool hasOldBalanceMarker = firstPageText.Contains("ОСТАТОК ПО СЧЁТУ", StringComparison.Ordinal);
+        bool hasDergunova = firstPageText.Contains("Дергунова К. А.", StringComparison.Ordinal);
+
+        return hasBank && hasStatement && !hasOldBalanceMarker && !hasDergunova;
+    }
 
     // ── Line-type detection ───────────────────────────────────────────────────
 
@@ -41,9 +58,14 @@ public partial class SberbankDebitCardParser : PdfParserBase
     [GeneratedRegex(@"^.*?[•*\.]{2,}\s*\d{4}")]
     private static partial Regex CardNumberRegex();
 
+    // Trailing "1 234,56 XYZ" (amount + currency symbol or ISO code) at end of description.
+    [GeneratedRegex(@"\s+(\d[\d\s\u00A0]*,\d{2})\s+(\S{1,5})$")]
+    private static partial Regex TrailingOperationalRegex();
+
     private static readonly string[] SkipKeywords =
     [
-        "Выписка по счёту", "ДАТА ОПЕРАЦИИ", "КАТЕГОРИЯ",
+        "Выписка по счёту", "Выписка по платёжному",
+        "ДАТА ОПЕРАЦИИ", "КАТЕГОРИЯ",
         "СУММА В ВАЛЮТЕ", "ОСТАТОК СРЕДСТВ", "Сумма в валюте",
         "В валюте счёта", "Продолжение на следующей",
         "Дата обработки", "и код авторизации", "Описание операции",
@@ -102,13 +124,15 @@ public partial class SberbankDebitCardParser : PdfParserBase
                     continue;
                 }
 
-                // Processing line: DD.MM.YYYY AUTHCODE  description
+                // Processing line: DD.MM.YYYY AUTHCODE  description  [amount currency]
                 var procMatch = TxProcessStartRegex().Match(full);
                 if (procMatch.Success && currentTx != null)
                 {
                     currentTx.ProcessingDate = ParseDate(procMatch.Groups[1].Value);
                     currentTx.AuthCode = procMatch.Groups[2].Value;
-                    currentTx.Description = full[procMatch.Length..].Trim();
+
+                    var descPart = full[procMatch.Length..].Trim();
+                    ExtractTrailingOperational(descPart, currentTx);
                     awaitingProcessingLine = false;
                     continue;
                 }
@@ -122,6 +146,35 @@ public partial class SberbankDebitCardParser : PdfParserBase
         if (currentTx != null) info.Transactions.Add(currentTx);
 
         return info;
+    }
+
+    /// <summary>
+    /// If <paramref name="descPart"/> ends with a money-and-currency pattern like "2,09 €" or "6,00 BYN",
+    /// split it off into OperationalAmount/OperationalCurrency; otherwise treat the whole string as description.
+    /// </summary>
+    private static void ExtractTrailingOperational(string descPart, Transaction tx)
+    {
+        var m = TrailingOperationalRegex().Match(descPart);
+        if (m.Success && LooksLikeCurrency(m.Groups[2].Value))
+        {
+            tx.Description = descPart[..m.Index].Trim();
+            tx.OperationalAmount = ParseBalance(m.Groups[1].Value);
+            tx.OperationalCurrency = m.Groups[2].Value;
+        }
+        else
+        {
+            tx.Description = descPart;
+        }
+    }
+
+    private static bool LooksLikeCurrency(string token)
+    {
+        if (string.IsNullOrEmpty(token)) return false;
+        // €, $, ₽, £, ¥ etc. — single non-ASCII-letter symbol
+        if (token.Length == 1 && !char.IsLetterOrDigit(token[0])) return true;
+        // 3-letter ISO code like BYN, USD, EUR
+        if (token.Length == 3 && token.All(char.IsUpper)) return true;
+        return false;
     }
 
     // ── Header ────────────────────────────────────────────────────────────────
@@ -178,7 +231,7 @@ public partial class SberbankDebitCardParser : PdfParserBase
 
     // ── Transaction header parsing ────────────────────────────────────────────
 
-    private static Transaction ParseTransactionHeader(System.Text.RegularExpressions.Match dateTimeMatch, string fullText)
+    private static Transaction ParseTransactionHeader(Match dateTimeMatch, string fullText)
     {
         var opDate = ParseDateTime(dateTimeMatch.Groups[1].Value, dateTimeMatch.Groups[2].Value);
         var afterDateTime = fullText[dateTimeMatch.Length..].Trim();
